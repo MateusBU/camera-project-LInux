@@ -119,3 +119,35 @@ cap.release();
 writer.release();
 ```
 Releases both the camera and the video writer once recording is done, flushing and finalizing the `.mp4` file.
+
+## Stopping the recording with a button press (GPIO)
+ 
+Instead of recording for a fixed duration, the loop condition can also check a digital input (e.g. a push button wired to `GPIO_BUTTON_1`) using the `bsp` module. The recording stops as soon as the button is pressed.
+ 
+```cpp
+bsp_init();
+ 
+std::cout << "Recording... press the button to stop." << std::endl;
+ 
+while (bsp_GetInputValue() != 0) {
+    cap >> frame;
+    if (frame.empty()) {
+        std::cerr << "Empty frame, skiping..." << std::endl;
+        continue;
+    }
+    writer.write(frame);
+}
+ 
+std::cout << "Button pressed! Recording finished. Saved as 'recorded_video.mp4'." << std::endl;
+ 
+cap.release();
+writer.release();
+bsp_closeGPIOs();
+```
+ 
+- **`bsp_init()`** — configures the GPIO chip, requesting the button line as a digital input (with pull-up enabled), as covered in the `bsp` module.
+- **`bsp_GetInputValue()`** — reads the current state of the button line on every loop iteration. With a pull-up resistor, the line reads `1` while the button is *not* pressed, and drops to `0` when it *is* pressed (assuming the button connects the pin to ground).
+- **Loop condition `!= 0`** — keeps recording frame by frame as long as the button hasn't been pressed; the loop exits naturally the moment the button pulls the line low.
+- **`bsp_closeGPIOs()`** — releases the GPIO lines and closes the chip once recording stops, alongside releasing the camera and video writer.
+This replaces the fixed `durationSecond` timer from the previous section — recording length now depends entirely on when the button is pressed, rather than a hardcoded time value.
+ 
