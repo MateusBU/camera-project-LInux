@@ -71,3 +71,51 @@ if (!frame.empty()) {
 cap.release();
 ```
 Saves the frame to disk as `foto_success.jpg` if it's valid, then releases the camera.
+
+## Recording video
+
+The same `cap` object (opened with the GStreamer/libcamera pipeline) can be used to record a video instead of a single photo. Note that CSI cameras have no microphone, so this produces video only, with no audio.
+
+```cpp
+int fps = 30;
+
+cv::VideoWriter writer(
+    "recorded_video.mp4",
+    cv::VideoWriter::fourcc('m', 'p', '4', 'v'),
+    fps,
+    cv::Size(frame.cols, frame.rows)
+);
+
+if (!writer.isOpened()) {
+    std::cerr << "Error opening the video file to write" << std::endl;
+    return -1;
+}
+```
+Creates a `cv::VideoWriter` that will encode frames into `recorded_video.mp4` using the `mp4v` (MPEG-4) codec, at the given `fps` and with the same resolution as the captured frames. If the codec isn't available on the system, `writer.isOpened()` returns `false` and the program exits with an error — in that case, try the `MJPG` codec with a `.avi` file instead.
+
+```cpp
+std::cout << "Recording for 10 seconds..." << std::endl;
+
+auto inicial = std::chrono::steady_clock::now();
+int durationSecond = 10;
+
+while(std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - inicial).count() < durationSecond) {
+
+    cap >> frame;
+    if(frame.empty()) {
+        std::cerr << "Empty frame, skiping..." <<std::endl;
+        continue;
+    }
+    writer.write(frame);
+}
+```
+Records for a fixed duration (10 seconds here) instead of a fixed number of frames, using `std::chrono` to track elapsed time. On each loop iteration it grabs a new frame from the camera and writes it to the video file; empty frames are skipped instead of being written, to avoid corrupting the output.
+
+```cpp
+std::cout << "Recording finished! Saved as 'recorded_video.mp4'." << std::endl;
+
+cap.release();
+writer.release();
+```
+Releases both the camera and the video writer once recording is done, flushing and finalizing the `.mp4` file.
