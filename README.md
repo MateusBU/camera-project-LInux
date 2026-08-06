@@ -151,3 +151,55 @@ bsp_closeGPIOs();
 - **`bsp_closeGPIOs()`** — releases the GPIO lines and closes the chip once recording stops, alongside releasing the camera and video writer.
 This replaces the fixed `durationSecond` timer from the previous section — recording length now depends entirely on when the button is pressed, rather than a hardcoded time value.
  
+## Timelapse mode (photo every N seconds, compiled into a video)
+ 
+Instead of recording continuous video, the camera can take a single photo at a fixed interval over a long period, later compiling all the photos into a sped-up video (a timelapse). Frames are saved sequentially with zero-padded filenames so they compile in the correct order.
+ 
+```cpp
+std::string outputDir = "timelapse_frames";
+fs::create_directories(outputDir);
+ 
+int intervalSeconds = 10; // interval between photos, in seconds
+int totalPhotos = 24;      // total number of photos to capture
+```
+Configures the output folder for the captured frames and the timelapse parameters: `intervalSeconds` is the wait time between each photo, and `totalPhotos` is how many photos will be taken in total.
+ 
+```cpp
+for(int i = 0; i < totalPhotos; i++) {
+    cap >> frame;
+
+    if(frame.empty()) {
+        std::cerr << "empty frame, skiping capture" << i << std::endl;
+    }
+    else {
+        std::ostringstream filename;
+        // Creates the file path/name in memory
+        filename << outputDir << "/frame_" << std::setw(4) << std::setfill('0') << i << ".jpg";
+    
+        // OpenCV creates the .jpg file on disk
+        cv::imwrite(filename.str(), frame);
+
+        // Displays this message on the terminal
+        std::cout << "Foto" << (i + 1) << "/" << totalPhotos << " save: " << filename.str() << std::endl;
+    }
+
+    if(i < totalPhotos - 1) {
+        std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds));
+    }
+}
+```
+Captures one photo per loop iteration, saving each with a sequential zero-padded name (`frame_0000.jpg`, `frame_0001.jpg`, ...). The zero-padding is important — without it, alphabetical file ordering would put `frame_10.jpg` before `frame_2.jpg`, breaking the sequence when compiling. `std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds))` waits between captures, skipped after the final photo.
+ 
+```cpp
+std::string ffmpegCommand =
+    "ffmpeg -y -framerate 10 -i " + outputDir + "/frame_%04d.jpg "
+    "-c:v libx264 -pix_fmt yuv420p timelapse.mp4";
+ 
+int result = system(ffmpegCommand.c_str());
+```
+Once all photos are captured, `ffmpeg` is called as an external process to compile the frames into a single video. `-framerate 10` sets how many of the captured photos are played per second in the output video (higher = faster/shorter timelapse), `-c:v libx264 -pix_fmt yuv420p` encodes with H.264 for good quality and broad player compatibility, and `-y` overwrites `timelapse.mp4` if it already exists.
+ 
+**Requires ffmpeg installed:**
+```bash
+sudo apt install -y ffmpeg
+```
