@@ -203,3 +203,70 @@ Once all photos are captured, `ffmpeg` is called as an external process to compi
 ```bash
 sudo apt install -y ffmpeg
 ```
+
+## Face detection (Haar Cascade)
+ 
+Real-time face detection using OpenCV's built-in Haar Cascade classifier — a lightweight, pre-trained model well suited for running on a Raspberry Pi without a GPU/accelerator.
+ 
+**Requires the cascade file to be available on the system:**
+```bash
+find / -name "haarcascade_frontalface_default.xml" 2>/dev/null
+```
+Usually located at `/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml`. If not found, install it with:
+```bash
+sudo apt install -y opencv-data
+```
+ 
+```cpp
+cv::CascadeClassifier faceCascade;
+std::string cascadePath = "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml";
+ 
+if (!faceCascade.load(cascadePath)) {
+    std::cerr << "Erro ao carregar o classificador Haar Cascade!" << std::endl;
+    return -1;
+}
+```
+Loads the pre-trained Haar Cascade model, a classical classifier trained to recognize the visual pattern of frontal faces.
+ 
+```cpp
+cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+cv::equalizeHist(gray, gray);
+```
+Haar Cascades work on grayscale images (not color), so each frame is converted first. `equalizeHist` improves contrast, which helps detection under uneven or poor lighting.
+ 
+```cpp
+std::vector<cv::Rect> faces;
+faceCascade.detectMultiScale(
+    gray,
+    faces,
+    1.1,             // scaleFactor
+    5,               // minNeighbors
+    0,
+    cv::Size(60, 60) // minimum face size
+);
+```
+Runs detection across multiple image scales, since a face can appear larger or smaller depending on distance from the camera. `scaleFactor` and `minNeighbors` control the trade-off between sensitivity (detecting more faces, but with more false positives) and precision.
+ 
+```cpp
+for (const auto& face : faces) {
+    cv::rectangle(frame, face, cv::Scalar(0, 255, 0), 2);
+}
+```
+Draws a green rectangle around each detected face directly on the frame.
+
+```cpp
+cv::resize(frame, displayFrame, cv::Size(), 0.5, 0.5);
+cv::imshow("Faces Detection", displayFrame);
+``` 
+Resize the frame into another variable for display
+
+### Performance note
+ 
+Processing at full camera resolution (e.g. 1296x972) can be slow on weaker Raspberry Pi models (Zero, 3). If detection lags, downscale the grayscale frame before running `detectMultiScale`:
+ 
+```cpp
+cv::resize(gray, gray, cv::Size(), 0.5, 0.5); // halves resolution before detection
+```
+ 
+If resizing, remember to multiply the resulting rectangle coordinates back by 2 before drawing them on the original full-resolution frame.
+
