@@ -270,3 +270,41 @@ cv::resize(gray, gray, cv::Size(), 0.5, 0.5); // halves resolution before detect
  
 If resizing, remember to multiply the resulting rectangle coordinates back by 2 before drawing them on the original full-resolution frame.
 
+## QR code detection
+ 
+Real-time QR code detection and decoding using OpenCV's built-in `cv::QRCodeDetector` — no external model files needed, works directly on color frames.
+ 
+```cpp
+cv::QRCodeDetector qrDetector;
+```
+Creates the detector. Unlike the Haar Cascade face detector, it requires no pre-trained model file to load — it's built into OpenCV's core.
+ 
+```cpp
+std::string data = qrDetector.detectAndDecode(frame);
+if (!data.empty()) {
+    std::cout << "QR Code detected: " << data << std::endl;
+}
+```
+Runs detection and decoding directly on the color (BGR) frame — no grayscale conversion needed here. `detectAndDecode` returns the decoded text if a QR code was found and successfully read, or an empty string if none was detected.
+ 
+```cpp
+cv::resize(frame, displayFrame, cv::Size(), 0.5, 0.5);
+cv::imshow("Camera", displayFrame);
+ 
+if (cv::waitKey(1) == 'q') {
+    break;
+}
+```
+Displays a live preview window (downscaled to half size for smoother rendering). `cv::waitKey(1)` is required for `imshow` to actually render the window and process GUI events; it also lets the loop exit cleanly when the `q` key is pressed, instead of relying on Ctrl+C.
+ 
+```cpp
+cap.release();
+cv::destroyAllWindows();
+```
+Releases the camera and closes the preview window once the loop ends.
+ 
+### Requirements
+ 
+- `cv::imshow` needs a graphical display available (running on the Raspberry Pi desktop directly, or over VNC). It will fail if run over a plain SSH session without X11 forwarding.
+- If running headless (no display), replace the `imshow` call with `cv::imwrite("ultimo_frame.jpg", displayFrame)` to save the annotated frame to disk instead of showing it live.
+ 
